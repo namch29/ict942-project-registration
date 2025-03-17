@@ -2341,7 +2341,7 @@ function renderProjectDetails() {
     const researchSection = document.createElement("div");
     researchSection.className = "details-section";
     const researchHeading = document.createElement("h3");
-    researchHeading.textContent = "Research Articles";
+    researchHeading.textContent = "Examples of Research Articles";
     researchSection.appendChild(researchHeading);
     const researchList = document.createElement("ul");
     selectedProject.researchArticles.forEach(function (article) {
