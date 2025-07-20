@@ -875,7 +875,37 @@
     margin: 10px 0;
   }
   
-  /* Responsive Design */
+  /* Project availability indicators */
+  .project-card.taken {
+    opacity: 0.6;
+    background-color: #f9fafb;
+    border-color: #d1d5db;
+  }
+
+  .project-card.taken .project-title {
+    color: #6b7280;
+  }
+
+  .project-card.taken .view-btn {
+    background-color: #9ca3af;
+    cursor: not-allowed;
+  }
+
+  .project-card.taken .view-btn:hover {
+    background-color: #9ca3af;
+  }
+
+  .project-taken-badge {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background-color: #ef4444;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
   @media (max-width: 768px) {
     .main-content {
       flex-direction: column;
@@ -1287,8 +1317,21 @@ function showMessage(message, type = "error") {
 }
 
 /**************************************
- * Firebase integration functions
+ * Project Availability Functions
  **************************************/
+function getSelectedProjects() {
+  return groupSubmissions.map(submission => submission.projectName);
+}
+
+function isProjectAvailable(projectTitle) {
+  const selectedProjects = getSelectedProjects();
+  return !selectedProjects.includes(projectTitle);
+}
+
+function getAvailableProjects() {
+  const selectedProjects = getSelectedProjects();
+  return projects.filter(project => !selectedProjects.includes(project.title));
+}
 function saveSubmissionToFirebase(submission) {
   return db.collection("groupSubmissions").add(submission);
 }
@@ -1582,7 +1625,8 @@ function toggleTechnology(technologyId) {
 }
 
 function filterProjects() {
-  let filtered = projects.slice();
+  let filtered = getAvailableProjects(); // Only show available projects
+  
   if (searchTerm) {
     filtered = filtered.filter(function (project) {
       return (
@@ -1622,7 +1666,13 @@ function renderProjectList() {
 
   const listHeader = document.createElement("div");
   listHeader.className = "list-header";
-  listHeader.innerHTML = `<h2>Available Projects (${filteredProjects.length})</h2>`;
+  const totalProjects = projects.length;
+  const availableProjects = filteredProjects.length;
+  const takenProjects = totalProjects - getAvailableProjects().length;
+  
+  listHeader.innerHTML = `
+    <h2>Available Projects (${availableProjects} available, ${takenProjects} taken)</h2>
+  `;
   container.appendChild(listHeader);
 
   filteredProjects.forEach(function (project) {
@@ -1686,8 +1736,12 @@ function renderProjectList() {
   if (filteredProjects.length === 0) {
     const noProjectsDiv = document.createElement("div");
     noProjectsDiv.className = "no-projects";
-    noProjectsDiv.innerHTML =
-      "<p>No projects match your current filters. Try adjusting your criteria.</p>";
+    const totalAvailable = getAvailableProjects().length;
+    if (totalAvailable === 0) {
+      noProjectsDiv.innerHTML = "<p>🎉 All projects have been selected! No projects are currently available.</p>";
+    } else {
+      noProjectsDiv.innerHTML = "<p>No projects match your current filters. Try adjusting your criteria to see available projects.</p>";
+    }
     container.appendChild(noProjectsDiv);
   }
 }
@@ -1889,6 +1943,14 @@ function openContactForm() {
     return;
   }
   
+  // Check if project is still available
+  if (!isProjectAvailable(selectedProject.title)) {
+    showMessage("This project has already been selected by another group. Please choose a different project.", "error");
+    selectedProject = null;
+    renderProjectList();
+    return;
+  }
+  
   // Pre-fill the project name field with the selected project title
   document.getElementById("project-name").value = selectedProject.title;
   
@@ -1940,6 +2002,15 @@ document.getElementById("group-form").addEventListener("submit", function (e) {
     }
   }
 
+  // Final check before submitting - ensure project is still available
+  if (!isProjectAvailable(projectName)) {
+    showMessage("This project has already been selected by another group while you were filling the form. Please choose a different project.", "error");
+    closeModal();
+    selectedProject = null;
+    renderProjectList();
+    return;
+  }
+
   // Create submission object
   const submission = {
     projectName: projectName,
@@ -1964,6 +2035,12 @@ document.getElementById("group-form").addEventListener("submit", function (e) {
       
       showMessage("Your group has been formed and saved successfully!", "success");
       closeModal();
+      
+      // Refresh project list to remove the selected project
+      selectedProject = null;
+      if (document.getElementById("tab-projects").classList.contains("active")) {
+        renderProjectList();
+      }
     })
     .catch((error) => {
       console.error("Error saving to Firebase:", error);
@@ -2003,8 +2080,12 @@ function removeGroupSubmission(submissionId, index) {
       
       showMessage("Group submission removed successfully.", "success");
       
-      // Refresh the view
-      renderSubmissionsView();
+      // Refresh both views to show the project as available again
+      if (document.getElementById("tab-projects").classList.contains("active")) {
+        renderProjectList();
+      } else {
+        renderSubmissionsView();
+      }
     })
     .catch((error) => {
       console.error("Error removing submission:", error);
